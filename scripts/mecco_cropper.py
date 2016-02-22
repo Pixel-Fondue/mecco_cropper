@@ -204,6 +204,7 @@ def main():
         add_channels_to_pass_group(long_axis)
 
         create_pass(ARG)
+        activate_latest_pass()
 
         set_channels(target_frame, target_offset, long_axis)
 
