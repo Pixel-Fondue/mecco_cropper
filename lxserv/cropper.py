@@ -199,8 +199,8 @@ class mecco_cropper_toggle(lxu.command.BasicCommand):
         if active_pass():
             deactivate_pass()
         elif modo.Scene().renderItem.channel('region').get():
-            arg = self.dyna_String(0) if self.dyna_String(0) else ''
-            lx.eval('mecco.cropper {}'.format(arg))
+            arg = self.dyna_String(0) if self.dyna_String(0) else DEFAULT_PASSNAME
+            lx.eval('mecco.cropper {{{}}}'.format(arg))
         else:
             try:
                 activate_latest_pass()
