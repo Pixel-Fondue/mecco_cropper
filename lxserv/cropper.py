@@ -2,10 +2,56 @@
 
 import lx
 import lxu.command
+import traceback
 import modo
+import datetime
 
 GROUP_NAME = 'mecco_regions'
 DEFAULT_PASSNAME = 'quick crop'
+
+SUFFIX = '_cropper'
+CAM_TAG = 'CROP'
+
+def get_tracer_camera():
+    if modo.Scene().renderCamera.hasTag(CAM_TAG) == False:
+        return None
+
+    if SUFFIX in modo.Scene().renderCamera.getTags()[CAM_TAG]:
+        return None
+
+    tagValue = modo.Scene().renderCamera.getTags()[CAM_TAG] + SUFFIX
+
+    for i in modo.Scene().iterItems():
+        if i is not modo.Scene.renderCamera and i.hasTag(CAM_TAG):
+            if i.getTags()[CAM_TAG] == tagValue:
+                return i
+
+    return None
+
+def create_tracer_camera():
+    camera = modo.Scene().addItem('camera')
+    renderCam = modo.Scene().renderCamera
+
+    camera.channel('visible').set('allOff')
+    camera.channel('lock').set('on')
+    camera.name = renderCam.name + SUFFIX
+
+    tagValue = ''.join([i for i in str(datetime.datetime.now()) if i.isalnum()])
+    camera.setTag(CAM_TAG, tagValue + SUFFIX)
+    renderCam.setTag(CAM_TAG, tagValue)
+
+    links = ['wposMatrix','wrotMatrix','size','squeeze','dof', 'focusDist', 'fStop', 'irisBlades', 'irisRot', 'irisBias', 'distort', 'motionBlur', 'blurLen', 'blurOff', 'stereo', 'stereoEye', 'stereoComp', 'ioDist', 'convDist', 'target', 'clipDist', 'clipping']
+
+    for link in links:
+    	lx.eval("channel.link add {%s:%s} {%s:%s}" % (renderCam.id, link, camera.id, link))
+
+    copies = [ 'focalLen', 'apertureX', 'apertureY', 'offsetX', 'offsetY' ]
+
+    for copy in copies:
+    	value = renderCam.channel(copy).get()
+    	lx.eval("channel.value {%s} channel:{%s:%s}" % (value, camera.id, copy))
+
+    return camera
 
 
 def get_render_region():
@@ -164,10 +210,21 @@ class Cropper(lxu.command.BasicCommand):
         self.dyna_Add('name', lx.symbol.sTYPE_STRING)
 
     def basic_Execute(self, msg, flags):
-        pass_name = self.dyna_String(0)
+        try:
+            self.CMD_EXE(msg, flags)
+        except Exception:
+            lx.out(traceback.format_exc())
+
+    def CMD_EXE(self, msg, flags):
+        try:
+            pass_name = self.dyna_String(0)
+        except:
+            pass
 
         if not pass_name:
             pass_name = DEFAULT_PASSNAME
+
+        tracerCam = get_tracer_camera() if get_tracer_camera() else create_tracer_camera()
 
         modo.Scene().renderItem.channel('region').set(False)
 
@@ -179,28 +236,30 @@ class Cropper(lxu.command.BasicCommand):
         channels_list = [
             modo.Scene().renderItem.channel('resX'),
             modo.Scene().renderItem.channel('resY'),
-            modo.Scene().renderCamera.channel('offsetX'),
-            modo.Scene().renderCamera.channel('offsetY'),
-            modo.Scene().renderCamera.channel('apertureX'),
-            modo.Scene().renderCamera.channel('apertureY')
+            modo.Scene().renderItem.channel('cameraIndex'),
+            tracerCam.channel('offsetX'),
+            tracerCam.channel('offsetY'),
+            tracerCam.channel('apertureX'),
+            tracerCam.channel('apertureY')
         ]
 
         for channel in channels_list:
             if channel not in modo.Scene().item(GROUP_NAME).groupChannels:
                 modo.Scene().item(GROUP_NAME).addChannel(channel)
 
-        lx.eval('group.layer group:{{{}}} name:{{{}}} grpType:pass'.format(GROUP_NAME, pass_name))
+        lx.eval('group.layer group:{%s} name:{%s} grpType:pass' % (GROUP_NAME, pass_name))
 
         target_frame = get_target_frame()
         target_offset = get_target_offset()
         target_aperture = get_target_aperture()
 
-        modo.Scene().renderItem.channel('resX').set(target_frame[0]),
-        modo.Scene().renderItem.channel('resY').set(target_frame[1]),
-        modo.Scene().renderCamera.channel('offsetX').set(target_offset[0]),
-        modo.Scene().renderCamera.channel('offsetY').set(target_offset[1]),
-        modo.Scene().renderCamera.channel('apertureX').set(target_aperture[0]),
-        modo.Scene().renderCamera.channel('apertureY').set(target_aperture[1])
+        modo.Scene().renderItem.channel('resX').set(target_frame[0])
+        modo.Scene().renderItem.channel('resY').set(target_frame[1])
+        lx.eval('render.camera {%s}' % tracerCam.id)
+        tracerCam.channel('offsetX').set(target_offset[0])
+        tracerCam.channel('offsetY').set(target_offset[1])
+        tracerCam.channel('apertureX').set(target_aperture[0])
+        tracerCam.channel('apertureY').set(target_aperture[1])
 
         lx.eval('edit.apply')
 
@@ -216,7 +275,7 @@ class CropperToggle(lxu.command.BasicCommand):
             deactivate_pass()
 
         elif modo.Scene().renderItem.channel('region').get():
-            arg = ' {{{}}}'.format(DEFAULT_PASSNAME) if self.dyna_Bool(0) else ''
+            arg = ' {%s}' % DEFAULT_PASSNAME if self.dyna_Bool(0) else ''
             lx.eval('cropper.crop{}'.format(arg))
 
         else:
