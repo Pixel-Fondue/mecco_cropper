@@ -233,6 +233,24 @@ def get_target_aperture():
     return target_aperture
 
 
+class CropperNotify(lxifc.Notifier):
+    masterList = {}
+
+    def noti_Name(self):
+        return "cropper.notifier"
+
+    def noti_AddClient(self,event):
+        self.masterList[event.__peekobj__()] = event
+
+    def noti_RemoveClient(self,event):
+        del self.masterList[event.__peekobj__()]
+
+    def Notify(self, flags):
+        for event in self.masterList:
+            evt = lx.object.CommandEvent(self.masterList[event])
+            evt.Event(flags)
+
+
 class Cropper(lxu.command.BasicCommand):
 
     def __init__(self):
@@ -297,7 +315,7 @@ class Cropper(lxu.command.BasicCommand):
         lx.eval('edit.apply')
 
         notifier = CropperNotify()
-        notifier.Notify(lx.symbol.fCMDNOTIFY_LABEL)
+        notifier.Notify(lx.symbol.fCMDNOTIFY_DATATYPE)
 
 
 class CropperToggle(lxu.command.BasicCommand):
@@ -336,27 +354,10 @@ class CropperClearAll(lxu.command.BasicCommand):
         try:
             modo.Scene().removeItems(modo.Scene().item(GROUP_NAME))
             notifier = CropperNotify()
-            notifier.Notify(lx.symbol.fCMDNOTIFY_LABEL)
+            notifier.Notify(lx.symbol.fCMDNOTIFY_DATATYPE)
 
         except:
             pass
-
-class CropperNotify(lxifc.Notifier):
-    masterList = {}
-
-    def noti_Name(self):
-        return "cropper.notifier"
-
-    def noti_AddClient(self,event):
-        self.masterList[event.__peekobj__()] = event
-
-    def noti_RemoveClient(self,event):
-        del self.masterList[event.__peekobj__()]
-
-    def Notify(self, flags):
-        for event in self.masterList:
-            evt = lx.object.CommandEvent(self.masterList[event])
-            evt.Event(flags)
 
 lx.bless(CropperToggle, "cropper.toggleButton")
 lx.bless(CropperDisable, "cropper.disable")

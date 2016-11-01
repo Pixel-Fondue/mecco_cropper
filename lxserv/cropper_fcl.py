@@ -51,9 +51,22 @@ class cmd_cropper_fcl(lxu.command.BasicCommand):
         self.dyna_Add('cmds', lx.symbol.sTYPE_INTEGER)
         self.basic_SetFlags(0, lx.symbol.fCMDARG_QUERY)
 
+        self.not_svc = lx.service.NotifySys()
+        self.notifier = None
+
+    def cmd_NotifyAddClient (self, argument, object):
+        if self.notifier is None:
+            self.notifier = self.not_svc.Spawn ("cropper.notifier", '')
+            self.notifier.AddClient (object)
+
+    def cmd_NotifyRemoveClient (self, object):
+        if self.notifier is not None:
+            self.notifier.RemoveClient (object)
+            
     def arg_UIValueHints(self, index):
         if index == 0:
             return cropper_fcl(list_passes())
+        return Cropper_FCL_Notifiers()
 
     def cmd_Execute(self,flags):
         pass
