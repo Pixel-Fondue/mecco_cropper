@@ -353,11 +353,23 @@ class CropperClearAll(lxu.command.BasicCommand):
     def basic_Execute(self, msg, flags):
         try:
             modo.Scene().removeItems(modo.Scene().item(GROUP_NAME))
-            notifier = CropperNotify()
-            notifier.Notify(lx.symbol.fCMDNOTIFY_DATATYPE)
-
         except:
             pass
+
+        hitlist = set()
+        for i in modo.Scene().iterItems():
+            if i.hasTag(CAM_TAG):
+                if SUFFIX in i.getTags()[CAM_TAG]:
+                    hitlist.add(i)
+
+            if i.hasTag(CAM_TAG):
+                i.setTag(CAM_TAG, None)
+
+        for hit in hitlist:
+            modo.Scene().removeItems(hit)
+
+        notifier = CropperNotify()
+        notifier.Notify(lx.symbol.fCMDNOTIFY_DATATYPE)
 
 lx.bless(CropperToggle, "cropper.toggleButton")
 lx.bless(CropperDisable, "cropper.disable")
