@@ -2,12 +2,13 @@
 
 import lx
 import lxu.command
+import lxifc
 import traceback
 import modo
 import datetime
 
 GROUP_NAME = 'mecco_regions'
-DEFAULT_PASSNAME = 'quick crop'
+DEFAULT_PASSNAME = 'crop'
 
 SUFFIX = '_cropper'
 CAM_TAG = 'CROP'
@@ -35,21 +36,50 @@ def create_tracer_camera():
     camera.channel('visible').set('allOff')
     camera.channel('lock').set('on')
     camera.name = renderCam.name + SUFFIX
+    camera.setParent(renderCam)
 
     tagValue = ''.join([i for i in str(datetime.datetime.now()) if i.isalnum()])
     camera.setTag(CAM_TAG, tagValue + SUFFIX)
     renderCam.setTag(CAM_TAG, tagValue)
 
-    links = ['wposMatrix','wrotMatrix','size','squeeze','dof', 'focusDist', 'fStop', 'irisBlades', 'irisRot', 'irisBias', 'distort', 'motionBlur', 'blurLen', 'blurOff', 'stereo', 'stereoEye', 'stereoComp', 'ioDist', 'convDist', 'target', 'clipDist', 'clipping']
+    channels_to_link = [
+        'wposMatrix',
+        'wrotMatrix',
+        'focalLen',
+        'size',
+        'squeeze',
+        'dof',
+        'focusDist',
+        'fStop',
+        'irisBlades',
+        'irisRot',
+        'irisBias',
+        'distort',
+        'motionBlur',
+        'blurLen',
+        'blurOff',
+        'stereo',
+        'stereoEye',
+        'stereoComp',
+        'ioDist',
+        'convDist',
+        'target',
+        'clipDist',
+        'clipping'
+    ]
 
-    for link in links:
-    	lx.eval("channel.link add {%s:%s} {%s:%s}" % (renderCam.id, link, camera.id, link))
+    for channel in channels_to_link:
+    	lx.eval("channel.link add {%s:%s} {%s:%s}" % (renderCam.id, channel, camera.id, channel))
 
-    copies = [ 'focalLen', 'apertureX', 'apertureY', 'offsetX', 'offsetY' ]
+    channels_to_copy = [
+        'apertureX',
+        'apertureY',
+        'offsetX',
+        'offsetY'
+    ]
 
-    for copy in copies:
-    	value = renderCam.channel(copy).get()
-    	lx.eval("channel.value {%s} channel:{%s:%s}" % (value, camera.id, copy))
+    for channel in channels_to_copy:
+        camera.channel(channel).set(renderCam.channel(channel).get())
 
     return camera
 
@@ -216,17 +246,20 @@ class Cropper(lxu.command.BasicCommand):
             lx.out(traceback.format_exc())
 
     def CMD_EXE(self, msg, flags):
-        try:
-            pass_name = self.dyna_String(0)
-        except:
-            pass
+        pass_name = self.dyna_String(0) if self.dyna_IsSet(0) else DEFAULT_PASSNAME
 
-        if not pass_name:
-            pass_name = DEFAULT_PASSNAME
+        if modo.Scene().renderCamera.channel('resOverride').get() == 1:
+            modo.dialogs.alert(
+                'Resolution Override Not Supported',
+                'The resolution override setting is enabled for this camera, and is not currently supported by cropper. Disable this setting and try again.',
+                'error'
+                )
+            return lx.symbol.e_FAILED
 
         tracerCam = get_tracer_camera() if get_tracer_camera() else create_tracer_camera()
 
         modo.Scene().renderItem.channel('region').set(False)
+        lx.eval("view3d.renderCamera")
 
         try:
             modo.Scene().item(GROUP_NAME)
@@ -263,6 +296,9 @@ class Cropper(lxu.command.BasicCommand):
 
         lx.eval('edit.apply')
 
+        notifier = CropperNotify()
+        notifier.Notify(lx.symbol.fCMDNOTIFY_LABEL)
+
 
 class CropperToggle(lxu.command.BasicCommand):
     def __init__(self):
@@ -281,5 +317,49 @@ class CropperToggle(lxu.command.BasicCommand):
         else:
             activate_latest_pass()
 
+class CropperDisable(lxu.command.BasicCommand):
+    def __init__(self):
+        lxu.command.BasicCommand.__init__(self)
+
+    def basic_Execute(self, msg, flags):
+        if active_pass():
+            deactivate_pass()
+
+class CropperClearAll(lxu.command.BasicCommand):
+    def __init__(self):
+        lxu.command.BasicCommand.__init__(self)
+
+    def basic_ButtonName(self):
+        return "Delete All Crops"
+
+    def basic_Execute(self, msg, flags):
+        try:
+            modo.Scene().removeItems(modo.Scene().item(GROUP_NAME))
+            notifier = CropperNotify()
+            notifier.Notify(lx.symbol.fCMDNOTIFY_LABEL)
+
+        except:
+            pass
+
+class CropperNotify(lxifc.Notifier):
+    masterList = {}
+
+    def noti_Name(self):
+        return "cropper.notifier"
+
+    def noti_AddClient(self,event):
+        self.masterList[event.__peekobj__()] = event
+
+    def noti_RemoveClient(self,event):
+        del self.masterList[event.__peekobj__()]
+
+    def Notify(self, flags):
+        for event in self.masterList:
+            evt = lx.object.CommandEvent(self.masterList[event])
+            evt.Event(flags)
+
 lx.bless(CropperToggle, "cropper.toggleButton")
+lx.bless(CropperDisable, "cropper.disable")
 lx.bless(Cropper, "cropper.crop")
+lx.bless(CropperClearAll, "cropper.clearAll")
+lx.bless(CropperNotify, "cropper.notifier")
