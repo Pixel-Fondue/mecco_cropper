@@ -37,7 +37,16 @@ class myGreatCommand(lxu.command.BasicCommand):
                 va.AddInt(0)
         return lx.result.OK
 
+    def arg_UIValueHints(self, index):
+        return Cropper_Channel_Notifiers()
+
     def basic_Enable(self,msg):
         return True
+
+
+class Cropper_Channel_Notifiers(lxu.command.BasicHints):
+
+    def __init__(self):
+        self._notifiers = [('channel.event','+v region')]
 
 lx.bless(myGreatCommand, CMD_NAME)
