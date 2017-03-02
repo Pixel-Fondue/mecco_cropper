@@ -212,23 +212,10 @@ def get_target_aperture():
         render_region['bottom'] - render_region['top']
     ]
 
-    if target_frame[0] > target_frame[1]:
-        target_aperture = [
-            proportional_aperture[0] * region_size[0],
-            modo.Scene().renderCamera.channel('apertureY').get()
-        ]
-
-    elif target_frame[0] == target_frame[1]:
-        target_aperture = [
-            proportional_aperture[1] * region_size[0],
-            modo.Scene().renderCamera.channel('apertureY').get()
-        ]
-
-    else:
-        target_aperture = [
-            modo.Scene().renderCamera.channel('apertureX').get(),
-            proportional_aperture[1] * region_size[1]
-        ]
+    target_aperture = [
+        proportional_aperture[0] * region_size[0],
+        proportional_aperture[1] * region_size[1]
+    ]
 
     return target_aperture
 
