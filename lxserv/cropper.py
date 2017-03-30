@@ -169,7 +169,7 @@ def active_pass():
 def activate_latest_pass():
     try:
         graph_kids = modo.Scene().item(GROUP_NAME).itemGraph('itemGroups').forward()
-    except NameError:
+    except (NameError, LookupError):
         return
 
     passes = [i for i in graph_kids if i.type == lx.symbol.a_ACTIONCLIP]
