@@ -28,6 +28,18 @@ def get_tracer_camera():
                 return i
 
     return None
+    
+def resXChannel():
+    if modo.Scene().renderCamera.channel('resOverride').get() == 1:
+        return modo.Scene().renderCamera.channel('resX')
+    else:
+        return modo.Scene().renderItem.channel('resX')
+        
+def resYChannel():
+    if modo.Scene().renderCamera.channel('resOverride').get() == 1:
+        return modo.Scene().renderCamera.channel('resY')
+    else:
+        return modo.Scene().renderItem.channel('resY')
 
 def create_tracer_camera():
     camera = modo.Scene().addItem('camera')
@@ -97,8 +109,8 @@ def get_target_frame():
     render_region = get_render_region()
 
     return [
-        int(modo.Scene().renderItem.channel('resX').get()) * abs(render_region['right'] - render_region['left']),
-        int(modo.Scene().renderItem.channel('resY').get()) * abs(render_region['bottom'] - render_region['top']),
+        int(resXChannel().get()) * abs(render_region['right'] - render_region['left']),
+        int(resYChannel().get()) * abs(render_region['bottom'] - render_region['top']),
     ]
 
 
@@ -106,8 +118,8 @@ def get_target_offset():
     proportional_aperture = get_proportional_aperture()
 
     frame = [
-        int(modo.Scene().renderItem.channel('resX').get()),
-        int(modo.Scene().renderItem.channel('resY').get())
+        int(resXChannel().get()),
+        int(resYChannel().get())
     ]
 
     offset = [
@@ -178,8 +190,8 @@ def activate_latest_pass():
 
 def get_proportional_aperture():
     frame = [
-        int(modo.Scene().renderItem.channel('resX').get()),
-        int(modo.Scene().renderItem.channel('resY').get())
+        int(resXChannel().get()),
+        int(resYChannel().get())
     ]
 
     ratio = float(max(frame)) / min(frame)
@@ -237,7 +249,6 @@ class CropperNotify(lxifc.Notifier):
             evt = lx.object.CommandEvent(self.masterList[event])
             evt.Event(flags)
 
-
 class Cropper(lxu.command.BasicCommand):
 
     def __init__(self):
@@ -253,14 +264,6 @@ class Cropper(lxu.command.BasicCommand):
     def CMD_EXE(self, msg, flags):
         pass_name = self.dyna_String(0) if self.dyna_IsSet(0) else DEFAULT_PASSNAME
 
-        if modo.Scene().renderCamera.channel('resOverride').get() == 1:
-            modo.dialogs.alert(
-                'Resolution Override Not Supported',
-                'The resolution override setting is enabled for this camera, and is not currently supported by cropper. Disable this setting and try again.',
-                'error'
-                )
-            return lx.symbol.e_FAILED
-
         tracerCam = get_tracer_camera() if get_tracer_camera() else create_tracer_camera()
 
         modo.Scene().renderItem.channel('region').set(False)
@@ -272,8 +275,8 @@ class Cropper(lxu.command.BasicCommand):
             lx.eval('group.create {} pass empty'.format(GROUP_NAME))
 
         channels_list = [
-            modo.Scene().renderItem.channel('resX'),
-            modo.Scene().renderItem.channel('resY'),
+            resXChannel(),
+            resYChannel(),
             modo.Scene().renderItem.channel('cameraIndex'),
             tracerCam.channel('offsetX'),
             tracerCam.channel('offsetY'),
