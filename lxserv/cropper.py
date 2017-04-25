@@ -6,6 +6,7 @@ import lxifc
 import traceback
 import modo
 import datetime
+from notifier import CropperNotify
 
 GROUP_NAME = 'mecco_regions'
 DEFAULT_PASSNAME = 'crop'
@@ -231,24 +232,6 @@ def get_target_aperture():
 
     return target_aperture
 
-
-class CropperNotify(lxifc.Notifier):
-    masterList = {}
-
-    def noti_Name(self):
-        return "cropper.notifier"
-
-    def noti_AddClient(self,event):
-        self.masterList[event.__peekobj__()] = event
-
-    def noti_RemoveClient(self,event):
-        del self.masterList[event.__peekobj__()]
-
-    def Notify(self, flags):
-        for event in self.masterList:
-            evt = lx.object.CommandEvent(self.masterList[event])
-            evt.Event(flags)
-
 class Cropper(lxu.command.BasicCommand):
 
     def __init__(self):
@@ -365,4 +348,3 @@ lx.bless(CropperToggle, "cropper.toggleButton")
 lx.bless(CropperDisable, "cropper.disable")
 lx.bless(Cropper, "cropper.crop")
 lx.bless(CropperClearAll, "cropper.clearAll")
-lx.bless(CropperNotify, "cropper.notifier")
