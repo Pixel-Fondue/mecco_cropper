@@ -26,14 +26,13 @@ def restoreSelection(listSelections):
 class OverscanBase(lxu.command.BasicCommand):
 
     def basic_Execute(self, msg, flags):
-      #  try:
-        self.CMD_EXE(msg, flags)
-      #  except Exception:
-       #     lx.out(traceback.format_exc())
+        try:
+            self.CMD_EXE(msg, flags)
+        except Exception:
+            lx.out(traceback.format_exc())
 
     def CMD_EXE(self, msg, flags):
         # Get selection
-        return
         save_selection = lx.evalN("query sceneservice selection ? all")
 
         # Get Render Camera
@@ -90,6 +89,21 @@ class OverscanPercent(OverscanBase):
     def get_percent(self):
         return self.dyna_Float(0, 100.0)
         
+    _first_run = True
+
+    def cmd_Flags(self):
+        return lx.symbol.fCMD_POSTCMD | lx.symbol.fCMD_MODEL | lx.symbol.fCMD_UNDO
+
+    def cmd_DialogInit(self):
+        if self._first_run:
+            # Assign default values at first run
+            self.attr_SetFlt(0, 1.0)
+            self.after_first_run()
+
+    @classmethod
+    def after_first_run(cls):
+        cls._first_run = False
+        
 class OverscanPixels(OverscanBase):
 
     def __init__(self):
@@ -103,7 +117,23 @@ class OverscanPixels(OverscanBase):
     def get_resolution_x(self):
         return self.dyna_Int(0, 0)
     def get_resolution_y(self):
-        return self.dyna_Int(1, 0)        
+        return self.dyna_Int(1, 0)
+
+    _first_run = True
+
+    def cmd_Flags(self):
+        return lx.symbol.fCMD_POSTCMD | lx.symbol.fCMD_MODEL | lx.symbol.fCMD_UNDO
+
+    def cmd_DialogInit(self):
+        if self._first_run:
+            # Assign default values at first run
+            self.attr_SetInt(0, 0)
+            self.attr_SetInt(1, 0)
+            self.after_first_run()
+
+    @classmethod
+    def after_first_run(cls):
+        cls._first_run = False     
         
 lx.bless(OverscanPercent, "cropper.overscanPercent")
 lx.bless(OverscanPixels, "cropper.overscanPixels")
