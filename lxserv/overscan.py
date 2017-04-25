@@ -33,6 +33,7 @@ class OverscanBase(lxu.command.BasicCommand):
 
     def CMD_EXE(self, msg, flags):
         # Get selection
+        return
         save_selection = lx.evalN("query sceneservice selection ? all")
 
         # Get Render Camera
