@@ -5,85 +5,11 @@ import lxu.command
 import lxifc
 import traceback
 import modo
-import datetime
+import cropper
 
-GROUP_NAME = 'mecco_regions'
 DEFAULT_PASSNAME = 'crop'
-
 SUFFIX = '_cropper'
-CAM_TAG = 'CROP'
-
-def get_tracer_camera():
-    if modo.Scene().renderCamera.hasTag(CAM_TAG) == False:
-        return None
-
-    if SUFFIX in modo.Scene().renderCamera.getTags()[CAM_TAG]:
-        return None
-
-    tagValue = modo.Scene().renderCamera.getTags()[CAM_TAG] + SUFFIX
-
-    for i in modo.Scene().iterItems():
-        if i is not modo.Scene.renderCamera and i.hasTag(CAM_TAG):
-            if i.getTags()[CAM_TAG] == tagValue:
-                return i
-
-    return None
-
-def create_tracer_camera():
-    camera = modo.Scene().addItem('camera')
-    renderCam = modo.Scene().renderCamera
-
-    camera.channel('visible').set('allOff')
-    camera.channel('lock').set('on')
-    camera.name = renderCam.name + SUFFIX
-    camera.setParent(renderCam)
-
-    tagValue = ''.join([i for i in str(datetime.datetime.now()) if i.isalnum()])
-    camera.setTag(CAM_TAG, tagValue + SUFFIX)
-    renderCam.setTag(CAM_TAG, tagValue)
-
-    channels_to_link = [
-        'wposMatrix',
-        'wrotMatrix',
-        'focalLen',
-        'size',
-        'squeeze',
-        'dof',
-        'focusDist',
-        'fStop',
-        'irisBlades',
-        'irisRot',
-        'irisBias',
-        'distort',
-        'motionBlur',
-        'blurLen',
-        'blurOff',
-        'stereo',
-        'stereoEye',
-        'stereoComp',
-        'ioDist',
-        'convDist',
-        'target',
-        'clipDist',
-        'clipping'
-    ]
-
-    for channel in channels_to_link:
-    	lx.eval("channel.link add {%s:%s} {%s:%s}" % (renderCam.id, channel, camera.id, channel))
-
-    channels_to_copy = [
-        'apertureX',
-        'apertureY',
-        'offsetX',
-        'offsetY'
-    ]
-
-    for channel in channels_to_copy:
-        camera.channel(channel).set(renderCam.channel(channel).get())
-
-    return camera
-
-
+   
 def get_render_region():
     return {
         'left': modo.Scene().renderItem.channel('regX0').get(),
@@ -97,8 +23,8 @@ def get_target_frame():
     render_region = get_render_region()
 
     return [
-        int(modo.Scene().renderItem.channel('resX').get()) * abs(render_region['right'] - render_region['left']),
-        int(modo.Scene().renderItem.channel('resY').get()) * abs(render_region['bottom'] - render_region['top']),
+        int(cropper.resXChannel().get()) * abs(render_region['right'] - render_region['left']),
+        int(cropper.resYChannel().get()) * abs(render_region['bottom'] - render_region['top']),
     ]
 
 
@@ -106,8 +32,8 @@ def get_target_offset():
     proportional_aperture = get_proportional_aperture()
 
     frame = [
-        int(modo.Scene().renderItem.channel('resX').get()),
-        int(modo.Scene().renderItem.channel('resY').get())
+        int(cropper.resXChannel().get()),
+        int(cropper.resYChannel().get())
     ]
 
     offset = [
@@ -143,7 +69,7 @@ def get_target_offset():
 
 
 def deactivate_pass():
-    graph_kids = modo.Scene().item(GROUP_NAME).itemGraph('itemGroups').forward()
+    graph_kids = modo.Scene().item(cropper.GROUP_NAME).itemGraph('itemGroups').forward()
     passes = [i for i in graph_kids if i.type == lx.symbol.a_ACTIONCLIP]
 
     for pass_ in passes:
@@ -152,11 +78,11 @@ def deactivate_pass():
 
 def active_pass():
     try:
-        modo.Scene().item(GROUP_NAME)
+        modo.Scene().item(cropper.GROUP_NAME)
     except LookupError:
         return None
 
-    graph_kids = modo.Scene().item(GROUP_NAME).itemGraph('itemGroups').forward()
+    graph_kids = modo.Scene().item(cropper.GROUP_NAME).itemGraph('itemGroups').forward()
     passes = [i for i in graph_kids if i.type == lx.symbol.a_ACTIONCLIP]
 
     for pass_ in passes:
@@ -168,7 +94,7 @@ def active_pass():
 
 def activate_latest_pass():
     try:
-        graph_kids = modo.Scene().item(GROUP_NAME).itemGraph('itemGroups').forward()
+        graph_kids = modo.Scene().item(cropper.GROUP_NAME).itemGraph('itemGroups').forward()
     except (NameError, LookupError):
         return
 
@@ -178,8 +104,8 @@ def activate_latest_pass():
 
 def get_proportional_aperture():
     frame = [
-        int(modo.Scene().renderItem.channel('resX').get()),
-        int(modo.Scene().renderItem.channel('resY').get())
+        int(cropper.resXChannel().get()),
+        int(cropper.resYChannel().get())
     ]
 
     ratio = float(max(frame)) / min(frame)
@@ -219,25 +145,6 @@ def get_target_aperture():
 
     return target_aperture
 
-
-class CropperNotify(lxifc.Notifier):
-    masterList = {}
-
-    def noti_Name(self):
-        return "cropper.notifier"
-
-    def noti_AddClient(self,event):
-        self.masterList[event.__peekobj__()] = event
-
-    def noti_RemoveClient(self,event):
-        del self.masterList[event.__peekobj__()]
-
-    def Notify(self, flags):
-        for event in self.masterList:
-            evt = lx.object.CommandEvent(self.masterList[event])
-            evt.Event(flags)
-
-
 class Cropper(lxu.command.BasicCommand):
 
     def __init__(self):
@@ -253,27 +160,19 @@ class Cropper(lxu.command.BasicCommand):
     def CMD_EXE(self, msg, flags):
         pass_name = self.dyna_String(0) if self.dyna_IsSet(0) else DEFAULT_PASSNAME
 
-        if modo.Scene().renderCamera.channel('resOverride').get() == 1:
-            modo.dialogs.alert(
-                'Resolution Override Not Supported',
-                'The resolution override setting is enabled for this camera, and is not currently supported by cropper. Disable this setting and try again.',
-                'error'
-                )
-            return lx.symbol.e_FAILED
-
-        tracerCam = get_tracer_camera() if get_tracer_camera() else create_tracer_camera()
+        tracerCam = cropper.get_tracer_camera(SUFFIX) if cropper.get_tracer_camera(SUFFIX) else cropper.create_tracer_camera(SUFFIX, True)
 
         modo.Scene().renderItem.channel('region').set(False)
         lx.eval("view3d.renderCamera")
 
         try:
-            modo.Scene().item(GROUP_NAME)
+            modo.Scene().item(cropper.GROUP_NAME)
         except LookupError:
-            lx.eval('group.create {} pass empty'.format(GROUP_NAME))
+            lx.eval('group.create {} pass empty'.format(cropper.GROUP_NAME))
 
         channels_list = [
-            modo.Scene().renderItem.channel('resX'),
-            modo.Scene().renderItem.channel('resY'),
+            cropper.resXChannel(),
+            cropper.resYChannel(),
             modo.Scene().renderItem.channel('cameraIndex'),
             tracerCam.channel('offsetX'),
             tracerCam.channel('offsetY'),
@@ -282,10 +181,10 @@ class Cropper(lxu.command.BasicCommand):
         ]
 
         for channel in channels_list:
-            if channel not in modo.Scene().item(GROUP_NAME).groupChannels:
-                modo.Scene().item(GROUP_NAME).addChannel(channel)
+            if channel not in modo.Scene().item(cropper.GROUP_NAME).groupChannels:
+                modo.Scene().item(cropper.GROUP_NAME).addChannel(channel)
 
-        lx.eval('group.layer group:{%s} name:{%s} grpType:pass' % (GROUP_NAME, pass_name))
+        lx.eval('group.layer group:{%s} name:{%s} grpType:pass' % (cropper.GROUP_NAME, pass_name))
 
         target_frame = get_target_frame()
         target_offset = get_target_offset()
@@ -301,7 +200,7 @@ class Cropper(lxu.command.BasicCommand):
 
         lx.eval('edit.apply')
 
-        notifier = CropperNotify()
+        notifier = cropper.CropperNotify()
         notifier.Notify(lx.symbol.fCMDNOTIFY_DATATYPE)
 
 
@@ -339,27 +238,26 @@ class CropperClearAll(lxu.command.BasicCommand):
 
     def basic_Execute(self, msg, flags):
         try:
-            modo.Scene().removeItems(modo.Scene().item(GROUP_NAME))
+            modo.Scene().removeItems(modo.Scene().item(cropper.GROUP_NAME))
         except:
             pass
 
         hitlist = set()
         for i in modo.Scene().iterItems():
-            if i.hasTag(CAM_TAG):
-                if SUFFIX in i.getTags()[CAM_TAG]:
+            if i.hasTag(cropper.CAM_TAG):
+                if SUFFIX in i.getTags()[cropper.CAM_TAG]:
                     hitlist.add(i)
 
-            if i.hasTag(CAM_TAG):
-                i.setTag(CAM_TAG, None)
+            if i.hasTag(cropper.CAM_TAG):
+                i.setTag(cropper.CAM_TAG, None)
 
         for hit in hitlist:
             modo.Scene().removeItems(hit)
 
-        notifier = CropperNotify()
+        notifier = cropper.CropperNotify()
         notifier.Notify(lx.symbol.fCMDNOTIFY_DATATYPE)
 
 lx.bless(CropperToggle, "cropper.toggleButton")
 lx.bless(CropperDisable, "cropper.disable")
 lx.bless(Cropper, "cropper.crop")
 lx.bless(CropperClearAll, "cropper.clearAll")
-lx.bless(CropperNotify, "cropper.notifier")
