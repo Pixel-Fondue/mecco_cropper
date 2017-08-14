@@ -8,8 +8,6 @@ class commandClass(lxu.command.BasicCommand):
     def basic_Execute(self, msg, flags):
         lx.eval('cropper.disable')
 
-        tagValue = modo.Scene().renderCamera.getTags()[CAM_TAG] + SUFFIX
-
         lx.eval('select.drop item')
         lx.eval('select.drop channel')
         modo.Scene().renderCamera.select()
